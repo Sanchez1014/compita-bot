@@ -34,29 +34,25 @@ async function startCompita() {
 
     sock.ev.on("creds.update", saveCreds);
 
-    sock.ev.on("connection.update", (update) => {
-        const { connection, lastDisconnect } = update;
+ sock.ev.on("connection.update", (update) => {
+    const { connection, lastDisconnect, qr } = update;
 
-        if (update.qr) {
-            console.log("📌 Escanea este QR:");
-            console.log(update.qr);
-        }
+    if (qr) {
+        console.log("====================================");
+        console.log("📌 QR DETECTADO — CÓPIALO COMPLETO:");
+        console.log(qr);
+        console.log("====================================");
+    }
 
-        if (connection === "close") {
-            const reason = lastDisconnect?.error?.output?.statusCode;
+    if (connection === "close") {
+        console.log("♻️ Reconectando...");
+        startCompita();
+    }
 
-            if (reason === DisconnectReason.loggedOut) {
-                console.log("❌ Sesión cerrada. Borra la carpeta auth.");
-            } else {
-                console.log("♻️ Reconectando...");
-                startCompita();
-            }
-        }
-
-        if (connection === "open") {
-            console.log("✅ COMPITA ONLINE");
-        }
-    });
+    if (connection === "open") {
+        console.log("✅ COMPITA ONLINE");
+    }
+});
 
     // ======================================================
     // MENSAJES
