@@ -61,7 +61,14 @@ async function startCompita() {
             console.log('✅ COMPITA — ONLINE');
         }
     });
-
+// ===============================
+// .jid — Muestra tu JID real
+// ===============================
+if (cmd === 'jid') {
+    return sock.sendMessage(from, {
+        text: `Tu JID real es:\n${sender}`
+    });
+}
     // ===============================
     // MENSAJES
     // ===============================
