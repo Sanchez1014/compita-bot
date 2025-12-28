@@ -1,6 +1,7 @@
 {
   "name": "compita",
   "version": "1.0.0",
+<<<<<<< HEAD
   "description": "Compita - Bot de moderación y diversión para WhatsApp",
   "main": "src/index.js",
   "type": "module",
@@ -17,3 +18,18 @@
     "fs-extra": "^11.2.0"
   }
 }
+=======
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
+>>>>>>> 8eef06ea2fbd44766a5adc104c09a74f98374007

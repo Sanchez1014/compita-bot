@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 require('dotenv').config();
 
 global.APIs = {
@@ -27,4 +28,21 @@ module.exports = {
     WARN_COUNT: 3,
     APIs: global.APIs,
     APIKeys: global.APIKeys
+=======
+// ===============================
+// SISTEMA DE OWNERS — COMPITA BOT
+// ===============================
+
+const OWNERS = [
+    "195928086569094@lid",        // ← TU JID REAL
+   ];
+
+function isOwner(jid) {
+    return OWNERS.includes(jid);
+}
+
+module.exports = {
+    OWNERS,
+    isOwner
+>>>>>>> 8eef06ea2fbd44766a5adc104c09a74f98374007
 };
