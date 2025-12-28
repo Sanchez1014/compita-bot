@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { isOwner } = require('../config'); // ← Importa sistema de owners
 
 const KEYS_PATH = path.join(__dirname, '..', 'data', 'keys.json');
 
@@ -45,10 +46,16 @@ function useKey(key, groupJid) {
     return true;
 }
 
+// ✅ NUEVO: Verifica owner + password
+function checkOwnerPermission(jid, password) {
+    return isOwner(jid) && password === "CARNITASM";
+}
+
 module.exports = {
     loadKeys,
     saveKeys,
     generateKey,
     validateKey,
-    useKey
+    useKey,
+    checkOwnerPermission // ← Exportado correctamente
 };
