@@ -1,34 +1,44 @@
-const { getConfig } = require('./config');
-const { generalCommands } = require('./general');
-const { moderationCommands } = require('./moderation');
-const { protectionSystem } = require('./protection');
+const { isOwner } = require('./config');
+const { generateKey } = require('./modules/keys');
 
-function parseMessage(msg) {
-  const from = msg.key.remoteJid;
-  const type = Object.keys(msg.message)[0];
+case '.genkey': {
+    const sender = msg.key.participant || msg.key.remoteJid;
 
-  let text = '';
-  if (type === 'conversation') text = msg.message.conversation;
-  if (type === 'extendedTextMessage') text = msg.message.extendedTextMessage.text;
+    // 1. Verificar que el mensaje viene de un OWNER
+    if (!isOwner(sender)) {
+        return sock.sendMessage(from, { text: "❌ No tienes permiso para generar keys." });
+    }
 
-  return { from, text: text || '' };
+    // 2. Verificar password
+    const password = args[0];
+    if (password !== "CARNITASM") {
+        return sock.sendMessage(from, { text: "❌ Password incorrecto." });
+    }
+
+    // 3. Preguntar por los días
+    await sock.sendMessage(from, { text: "⏳ ¿Cuántos días quieres darle a la key?" });
+
+    sock.ev.once('messages.upsert', async (m) => {
+        try {
+            const reply = m.messages[0];
+            const text = reply.message.conversation || reply.message.extendedTextMessage?.text;
+
+            const days = parseInt(text);
+            if (!days || days < 1) {
+                return sock.sendMessage(from, { text: "❌ Número inválido. Intenta de nuevo." });
+            }
+
+            const { key } = generateKey("PREMIUM", days);
+
+            return sock.sendMessage(from, {
+                text: `🔑 *KEY GENERADA*\n\nKey: ${key}\nDías: ${days}`
+            });
+
+        } catch (e) {
+            console.log(e);
+            sock.sendMessage(from, { text: "❌ Ocurrió un error al generar la key." });
+        }
+    });
+
 }
-
-async function handleMessage(sock, msg) {
-  const { from, text } = parseMessage(msg);
-  const config = getConfig(from);
-
-  await protectionSystem.checkMessage(sock, msg, from, text);
-
-  const command = text.split(' ')[0].toLowerCase();
-
-  if (generalCommands[command]) {
-    return generalCommands[command](sock, msg, from, text);
-  }
-
-  if (config.mod && moderationCommands[command]) {
-    return moderationCommands[command](sock, msg, from, text);
-  }
-}
-
-module.exports = { handleMessage };
+break;

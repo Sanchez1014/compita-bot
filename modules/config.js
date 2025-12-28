@@ -1,43 +1,20 @@
-// modules/config.js
-const fs = require('fs');
-const path = require('path');
+// ===============================
+// SISTEMA DE OWNERS — COMPITA BOT
+// ===============================
 
-const CONFIG_PATH = path.join(__dirname, '..', 'data', 'config.json');
+// LISTA DE OWNERS (puedes agregar todos los que quieras)
+const OWNERS = [
+    "521XXXXXXXXXX@s.whatsapp.net",   // Tu número principal (el que dijiste que es “segundo”)
+    "18186743565@s.whatsapp.net",     // Tu número secundario
+    "18183913545@s.whatsapp.net"      // Número del bot
+];
 
-function loadConfig() {
-    if (!fs.existsSync(CONFIG_PATH)) return {};
-    const raw = fs.readFileSync(CONFIG_PATH, 'utf8') || '{}';
-    return JSON.parse(raw);
-}
-
-function saveConfig(cfg) {
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2), 'utf8');
-}
-
-function getChatConfig(chatId) {
-    const cfg = loadConfig();
-    if (!cfg[chatId]) {
-        cfg[chatId] = {
-            welcome: false,
-            antilink: false,
-            antiflood: false,
-            maxFloodMessages: 5,
-            floodIntervalMs: 5000
-        };
-        saveConfig(cfg);
-    }
-    return cfg[chatId];
-}
-
-function setChatConfig(chatId, key, value) {
-    const cfg = loadConfig();
-    if (!cfg[chatId]) cfg[chatId] = {};
-    cfg[chatId][key] = value;
-    saveConfig(cfg);
-    return cfg[chatId];
+// FUNCIÓN PARA VERIFICAR SI ALGUIEN ES OWNER
+function isOwner(jid) {
+    return OWNERS.includes(jid);
 }
 
 module.exports = {
-    getChatConfig,
-    setChatConfig
+    OWNERS,
+    isOwner
 };
