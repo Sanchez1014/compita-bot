@@ -11,6 +11,9 @@ const {
 const P = require('pino');
 const fs = require('fs');
 
+// Importar sistema REAL de owners
+const { isOwner } = require('./config');
+
 // Módulos del sistema
 const { generateKey, checkOwnerPermission, listKeys } = require('./modules/keys');
 const { activarKeyEnGrupo } = require('./modules/activateKey');
@@ -22,9 +25,6 @@ const {
 } = require('./modules/rent');
 const { getChatConfig, setChatConfig } = require('./modules/config');
 const { isAdminInGroup, containsLink, checkFlood } = require('./modules/moderation');
-
-// OPCIONAL: tu JID de owner para comandos admin
-const OWNER_JID = null; // ej: "1818XXXXXXX@s.whatsapp.net"
 
 // ===============================
 // INICIO DE SESIÓN
@@ -80,10 +80,9 @@ async function startCompita() {
 
         const isGroup = from.endsWith('@g.us');
 
-        // WELCOME (si quieres, aquí puedes engancharte a eventos de add)
-        // Por simplicidad, no lo detallo aún.
-
-        // ANTI-LINK / ANTI-FLOOD (antes de comandos)
+        // ===============================
+        // ANTI-LINK / ANTI-FLOOD
+        // ===============================
         if (isGroup) {
             const groupMetadata = await sock.groupMetadata(from);
             const myId = sock.user.id;
@@ -120,7 +119,9 @@ async function startCompita() {
             }
         }
 
+        // ===============================
         // COMANDOS
+        // ===============================
         if (!body.startsWith('.')) return;
 
         const args = body.trim().split(/\s+/);
@@ -143,10 +144,12 @@ Pide una KEY a tu proveedor y usa:
             }
         }
 
-        const isOwner = OWNER_JID ? sender === OWNER_JID : false;
+        // SISTEMA REAL DE OWNERS
+        const isOwnerUser = isOwner(sender);
 
-        // ========== .genkey ==========
-        // .genkey CARNITASM 30 PRO
+        // ===============================
+        // .genkey
+        // ===============================
         if (cmd === 'genkey') {
             const password = args[0];
             const daysArg = args[1];
@@ -186,13 +189,17 @@ Creada: ${new Date(data.createdAt).toISOString().slice(0, 19).replace('T', ' ')}
             });
         }
 
-        // ========== .activar KEY ==========
+        // ===============================
+        // .activar
+        // ===============================
         if (cmd === 'activar') {
             const key = args[0];
             return activarKeyEnGrupo(sock, from, sender, key);
         }
 
-        // ========== .mi-plan (info del grupo actual) ==========
+        // ===============================
+        // .mi-plan
+        // ===============================
         if (cmd === 'mi-plan') {
             if (!isGroup) {
                 return sock.sendMessage(from, {
@@ -216,9 +223,11 @@ Expira: ${r.expiresAt ? r.expiresAt : 'Sin fecha'}`
             });
         }
 
-        // ========== .keys (listar últimas keys, solo owner) ==========
+        // ===============================
+        // .keys (solo owner)
+        // ===============================
         if (cmd === 'keys') {
-            if (!isOwner) {
+            if (!isOwnerUser) {
                 return sock.sendMessage(from, { text: '❌ Solo el owner puede ver las keys.' });
             }
             const list = listKeys(20);
@@ -234,9 +243,11 @@ Expira: ${r.expiresAt ? r.expiresAt : 'Sin fecha'}`
             return sock.sendMessage(from, { text: txt.trim() });
         }
 
-        // ========== .rentas (listar grupos con renta, solo owner) ==========
+        // ===============================
+        // .rentas (solo owner)
+        // ===============================
         if (cmd === 'rentas') {
-            if (!isOwner) {
+            if (!isOwnerUser) {
                 return sock.sendMessage(from, { text: '❌ Solo el owner puede ver las rentas.' });
             }
             const list = listRents(50);
@@ -250,10 +261,11 @@ Expira: ${r.expiresAt ? r.expiresAt : 'Sin fecha'}`
             return sock.sendMessage(from, { text: txt.trim() });
         }
 
-        // ========== .renovar DIAS (extender renta de grupo actual, solo owner) ==========
-        // .renovar 30
+        // ===============================
+        // .renovar (solo owner)
+        // ===============================
         if (cmd === 'renovar') {
-            if (!isOwner) {
+            if (!isOwnerUser) {
                 return sock.sendMessage(from, { text: '❌ Solo el owner puede renovar grupos.' });
             }
             if (!isGroup) {
@@ -277,8 +289,9 @@ Nueva expiración: ${updated.expiresAt}`
             });
         }
 
-        // ========== .on / .off features ==========
-        // .on welcome / .on antilink / .on antiflood
+        // ===============================
+        // .on / .off
+        // ===============================
         if (cmd === 'on' || cmd === 'off') {
             if (!isGroup) {
                 return sock.sendMessage(from, { text: 'ℹ️ Solo usable en grupos.' });
@@ -297,8 +310,9 @@ Nueva expiración: ${updated.expiresAt}`
             });
         }
 
-        // ========== .ban / .kick (básico) ==========
-        // .ban @usuario
+        // ===============================
+        // .ban / .kick
+        // ===============================
         if (cmd === 'ban' || cmd === 'kick') {
             if (!isGroup) {
                 return sock.sendMessage(from, { text: 'ℹ️ Solo usable en grupos.' });
@@ -323,14 +337,18 @@ Nueva expiración: ${updated.expiresAt}`
             });
         }
 
-        // ========== .hola ==========
+        // ===============================
+        // .hola
+        // ===============================
         if (cmd === 'hola') {
             return sock.sendMessage(from, {
                 text: '👋 Hola, soy *Compita*. ¿Qué necesitas?'
             });
         }
 
-        // ========== .menu ==========
+        // ===============================
+        // .menu
+        // ===============================
         if (cmd === 'menu' || cmd === 'help' || cmd === 'ayuda') {
             return sock.sendMessage(from, {
                 text:
@@ -352,14 +370,13 @@ Admin de grupo:
 .ban @usuario
 
 Owner:
-.genkey CARNITASM 30 PRO
+.genkey
 .keys
 .rentas
 .renovar 30`
             });
         }
 
-        // aquí puedes seguir agregando features nuevas
     });
 }
 
