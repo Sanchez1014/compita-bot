@@ -1,227 +1,539 @@
-// ===============================
-// COMPITA — SISTEMA PROFESIONAL
-// ===============================
+// ======================================================
+// COMPITA — SISTEMA PROFESIONAL (VERSIÓN OPTIMIZADA)
+// Compatible con Baileys MD moderno
+// Con sistema de keys, activación, moderación y logs
+// ======================================================
+
+// ------------------------------
+// IMPORTS PRINCIPALES
+// ------------------------------
+const {
+    default: makeWASocket,
+    useMultiFileAuthState,
+    DisconnectReason
+} = require("@whiskeysockets/baileys");
+
+const fs = require("fs");
+const path = require("path");
+
+// ------------------------------
+// IMPORTS DE MÓDULOS INTERNOS
+// ------------------------------
+const {
+    generateKey,
+    listKeys,
+    checkOwnerPermission
+} = require("./modules/keys");
 
 const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  DisconnectReason
-} = require('@whiskeysockets/baileys')
+    activarKeyEnGrupo,
+    isGroupActive,
+    getGroupRent,
+    extendGroupRent,
+    listRents
+} = require("./modules/activateKey");
 
-const P = require('pino')
-
-// SISTEMAS
-const { isOwner } = require('./config')
-const { generateKey, checkOwnerPermission, listKeys } = require('./modules/keys')
-const { activarKeyEnGrupo } = require('./modules/activateKey')
 const {
-  isGroupActive,
-  getGroupRent,
-  listRents,
-  extendGroupRent
-} = require('./modules/rent')
-const { getChatConfig } = require('./modules/config')
-const { isAdminInGroup, containsLink, checkFlood } = require('./modules/moderation')
+    isAdminInGroup,
+    checkFlood
+} = require("./modules/moderation");
 
-// ===============================
-// START
-// ===============================
+const {
+    getChatConfig,
+    setChatConfig
+} = require("./modules/config");
+
+// ------------------------------
+// CONFIGURACIÓN GENERAL
+// ------------------------------
+const OWNER = ["195928086569094@lid"]; // <-- Tu JID real (LID)
+const PREFIX = ".";
+
+// ------------------------------
+// FUNCIÓN PRINCIPAL
+// ------------------------------
 async function startCompita() {
-  const { state, saveCreds } = await useMultiFileAuthState('./auth')
+    console.log("🚀 Iniciando COMPITA...");
 
-  const sock = makeWASocket({
-    auth: state,
-    printQRInTerminal: true,
-    logger: P({ level: 'silent' })
-  })
+    const { state, saveCreds } = await useMultiFileAuthState("auth");
 
-  sock.ev.on('creds.update', saveCreds)
+    const sock = makeWASocket({
+        printQRInTerminal: false, // QR ahora se maneja manualmente
+        auth: state,
+        syncFullHistory: false
+    });
 
-  // ===============================
-  // RECONEXIÓN
-  // ===============================
-  sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
-    if (connection === 'close') {
-      const reason = lastDisconnect?.error?.output?.statusCode
-      if (reason === DisconnectReason.loggedOut) {
-        console.log('❌ Sesión cerrada, borra auth/')
-      } else {
-        console.log('♻️ Reconectando...')
-        startCompita()
-      }
-    }
-    if (connection === 'open') console.log('✅ COMPITA ONLINE')
-  })
+    // Guardar credenciales
+    sock.ev.on("creds.update", saveCreds);
 
-  // ===============================
-  // MENSAJES
-  // ===============================
-  sock.ev.on('messages.upsert', async ({ messages }) => {
-    const msg = messages[0]
-    if (!msg?.message) return
+    // ------------------------------
+    // EVENTO DE CONEXIÓN (QR + ESTADO)
+    // ------------------------------
+    sock.ev.on("connection.update", (update) => {
+        const { connection, lastDisconnect } = update;
 
-    const from = msg.key.remoteJid
-    const sender = msg.key.participant || from
-    const body =
-      msg.message.conversation ||
-      msg.message.extendedTextMessage?.text ||
-      ''
-
-    if (!body) return
-
-    const isGroup = from.endsWith('@g.us')
-
-    // ===============================
-    // MODERACIÓN
-    // ===============================
-    if (isGroup) {
-      const cfg = getChatConfig(from)
-      const metadata = await sock.groupMetadata(from)
-      const botIsAdmin = isAdminInGroup(metadata.participants, sock.user.id)
-
-      if (cfg.antilink && containsLink(body) && botIsAdmin) {
-        await sock.sendMessage(from, { text: '🚫 Enlaces no permitidos.' })
-        await sock.groupParticipantsUpdate(from, [sender], 'remove')
-        return
-      }
-
-      if (cfg.antiflood) {
-        const flood = checkFlood(
-          from,
-          sender,
-          cfg.maxFloodMessages || 5,
-          cfg.floodIntervalMs || 5000
-        )
-        if (flood && botIsAdmin) {
-          await sock.sendMessage(from, { text: '🚫 Flood detectado.' })
-          await sock.groupParticipantsUpdate(from, [sender], 'remove')
-          return
+        // Mostrar QR manualmente
+        if (update.qr) {
+            console.log("📌 Escanea este QR para iniciar sesión:");
+            console.log(update.qr);
         }
-      }
-    }
 
-    // ===============================
-    // COMANDOS
-    // ===============================
-    if (!body.startsWith('.')) return
+        // Reconexión automática
+        if (connection === "close") {
+            const reason = lastDisconnect?.error?.output?.statusCode;
 
-    const args = body.trim().split(/\s+/)
-    const cmd = args.shift().slice(1).toLowerCase()
+            if (reason === DisconnectReason.loggedOut) {
+                console.log("❌ Sesión cerrada. Borra la carpeta auth y vuelve a escanear.");
+            } else {
+                console.log("♻️ Reconectando COMPITA...");
+                startCompita();
+            }
+        }
 
-    const freeCommands = ['activar', 'menu', 'help', 'ayuda', 'hola', 'mi-plan', 'jid']
+        if (connection === "open") {
+            console.log("✅ COMPITA — ONLINE");
+        }
+    });    // ======================================================
+    // PROCESAMIENTO DE MENSAJES
+    // ======================================================
+    sock.ev.on("messages.upsert", async ({ messages }) => {
+        try {
+            const msg = messages[0];
+            if (!msg.message) return;
 
-    if (isGroup && !freeCommands.includes(cmd)) {
-      if (!isGroupActive(from)) {
-        return sock.sendMessage(from, {
-          text: '⚠️ Este grupo no tiene renta activa.\nUsa: .activar KEY'
-        })
-      }
-    }
+            const from = msg.key.remoteJid;
+            const isGroup = from.endsWith("@g.us");
 
-    // ===============================
-    // COMANDOS BASE
-    // ===============================
-    if (cmd === 'hola') {
-      return sock.sendMessage(from, { text: '👋 Hola, soy *Compita*.' })
-    }
+            // Detectar remitente real (LID compatible)
+            const sender =
+                msg.key.participant ||
+                msg.key.remoteJid ||
+                "desconocido@lid";
 
-    if (cmd === 'menu' || cmd === 'help' || cmd === 'ayuda') {
-      return sock.sendMessage(from, {
-        text:
-`📋 *MENÚ COMPITA*
+            const myId = sock.user.id;
 
-Base:
-.hola
-.menu
-.mi-plan
-.activar KEY
+            // Extraer texto del mensaje
+            const body =
+                msg.message.conversation ||
+                msg.message.extendedTextMessage?.text ||
+                msg.message.imageMessage?.caption ||
+                "";
 
-Owner:
-.genkey
-.keys
-.rentas
-.renovar 30`
-      })
-    }
+            // Logs profesionales
+            console.log(
+                `📩 Mensaje recibido — ${isGroup ? "Grupo" : "Privado"} | ${from} | ${sender} | ${body}`
+            );
 
-    if (cmd === 'jid') {
-      return sock.sendMessage(from, { text: `📎 Tu JID:\n${sender}` })
-    }
+            // Ignorar mensajes vacíos
+            if (!body) return;
 
-    // ===============================
-    // ACTIVAR
-    // ===============================
-    if (cmd === 'activar') {
-      return activarKeyEnGrupo(sock, from, sender, args[0])
-    }
+            // ======================================================
+            // SISTEMA DE MODERACIÓN (solo grupos)
+            // ======================================================
+            if (isGroup) {
+                const cfg = getChatConfig(from);
 
-    if (cmd === 'mi-plan') {
-      if (!isGroup) return
-      const r = getGroupRent(from)
-      if (!r) {
-        return sock.sendMessage(from, { text: '❌ Sin renta activa.' })
-      }
-      return sock.sendMessage(from, {
-        text:
-`📦 PLAN ACTUAL
-Plan: ${r.plan}
-Expira: ${r.expiresAt}`
-      })
-    }
+                // ANTI-FLOOD
+                if (cfg.antiflood) {
+                    const isFlood = checkFlood(
+                        from,
+                        sender,
+                        cfg.maxFloodMessages || 5,
+                        cfg.floodIntervalMs || 5000
+                    );
 
-    // ===============================
-    // OWNER
-    // ===============================
-    if (cmd === 'genkey') {
-      const pass = args[0]
-      const days = parseInt(args[1])
-      const plan = (args[2] || 'BASIC').toUpperCase()
+                    if (isFlood) {
+                        const groupMetadata = await sock.groupMetadata(from);
+                        const iAmAdmin = isAdminInGroup(
+                            groupMetadata.participants,
+                            myId
+                        );
 
-      if (!checkOwnerPermission(sender, pass))
-        return sock.sendMessage(from, { text: '❌ Sin permisos.' })
+                        if (iAmAdmin) {
+                            await sock.sendMessage(from, {
+                                text: "🚫 Flood detectado, usuario expulsado."
+                            });
 
-      if (!days || days <= 0)
-        return sock.sendMessage(from, { text: '❌ Días inválidos.' })
+                            await sock.groupParticipantsUpdate(
+                                from,
+                                [sender],
+                                "remove"
+                            );
+                        }
+                    }
+                }
+            }
 
-      const { key } = generateKey(plan, days)
+            // ======================================================
+            // SISTEMA DE COMANDOS
+            // ======================================================
+            if (!body.startsWith(PREFIX)) return;
 
-      return sock.sendMessage(from, {
-        text:
-`🔑 KEY GENERADA
+            const args = body.trim().split(/\s+/);
+            const cmd = args.shift().slice(1).toLowerCase();
+
+            // Detectar si el usuario es owner
+            const isOwnerUser = OWNER.includes(sender);
+            // ======================================================
+            // COMANDOS BASE (NO REQUIEREN RENTA)
+            // ======================================================
+            const freeCommands = [
+                "activar",
+                "hola",
+                "menu",
+                "help",
+                "ayuda",
+                "mi-plan"
+            ];
+
+            // ======================================================
+            // BLOQUEO POR RENTA (SOLO GRUPOS)
+            // ======================================================
+            if (isGroup && !freeCommands.includes(cmd)) {
+                const activo = isGroupActive(from);
+
+                if (!activo) {
+                    return sock.sendMessage(from, {
+                        text:
+`⚠️ *Este grupo no tiene una renta activa.*
+
+Pide una KEY a tu proveedor y usa:
+.activar TU-KEY`
+                    });
+                }
+            }
+
+            // ======================================================
+            // .JID — Mostrar JID real
+            // ======================================================
+            if (cmd === "jid") {
+                return sock.sendMessage(from, {
+                    text: `Tu JID real es:\n${sender}`
+                });
+            }
+
+            // ======================================================
+            // .GENKEY — Generar keys (solo owner)
+            // ======================================================
+            if (cmd === "genkey") {
+                const password = args[0];
+                const daysArg = args[1];
+                const plan = (args[2] || "BASIC").toUpperCase();
+
+                if (!checkOwnerPermission(sender, password)) {
+                    return sock.sendMessage(from, {
+                        text: "❌ No tienes permisos o el password es incorrecto."
+                    });
+                }
+
+                const days = parseInt(daysArg);
+                if (isNaN(days) || days <= 0) {
+                    return sock.sendMessage(from, {
+                        text:
+`❌ Días inválidos.
+
+Uso correcto:
+.genkey CARNITASM 30 PRO`
+                    });
+                }
+
+                const { key, data } = generateKey(plan, days);
+
+                return sock.sendMessage(from, {
+                    text:
+`🔑 *KEY GENERADA — COMPITA*
 
 Key: ${key}
 Plan: ${plan}
-Días: ${days}`
-      })
-    }
+Días: ${days}
+Creada: ${new Date(data.createdAt)
+    .toISOString()
+    .slice(0, 19)
+    .replace("T", " ")}
 
-    if (cmd === 'keys' && isOwner(sender)) {
-      const keys = listKeys(20)
-      let txt = '🔑 KEYS\n\n'
-      keys.forEach(k => {
-        txt += `${k.key} | ${k.plan} | Usada: ${k.used}\n`
-      })
-      return sock.sendMessage(from, { text: txt })
-    }
+📌 Entrega esta key al cliente y dile:
+1) Agrega a Compita a su grupo
+2) Use: .activar ${key}`
+                });
+            }
 
-    if (cmd === 'rentas' && isOwner(sender)) {
-      const rents = listRents(50)
-      let txt = '📦 RENTAS\n\n'
-      rents.forEach(r => {
-        txt += `${r.groupJid}\nExpira: ${r.expiresAt}\n\n`
-      })
-      return sock.sendMessage(from, { text: txt })
-    }
+            // ======================================================
+            // .ACTIVAR — Activar key en grupo
+            // ======================================================
+            if (cmd === "activar") {
+                const key = args[0];
 
-    if (cmd === 'renovar' && isOwner(sender)) {
-      const days = parseInt(args[0])
-      const r = extendGroupRent(from, days)
-      if (!r) return sock.sendMessage(from, { text: '❌ No existe renta.' })
-      return sock.sendMessage(from, {
-        text: `✅ Renovado\nNueva fecha: ${r.expiresAt}`
-      })
-    }
-  })
+                if (!key) {
+                    return sock.sendMessage(from, {
+                        text: "❌ Debes ingresar una key.\nEjemplo: .activar COMPITA-XXXX"
+                    });
+                }
+
+                try {
+                    return activarKeyEnGrupo(sock, from, sender, key);
+                } catch (e) {
+                    return sock.sendMessage(from, {
+                        text: "❌ Error interno al activar la key.\n" + e.message
+                    });
+                }
+            }
+
+            // ======================================================
+            // .MI-PLAN — Ver plan del grupo
+            // ======================================================
+            if (cmd === "mi-plan") {
+                if (!isGroup) {
+                    return sock.sendMessage(from, {
+                        text: "ℹ️ Usa este comando dentro del grupo donde está Compita."
+                    });
+                }
+
+                const r = getGroupRent(from);
+
+                if (!r) {
+                    return sock.sendMessage(from, {
+                        text: "❌ Este grupo no tiene una renta activa."
+                    });
+                }
+
+                return sock.sendMessage(from, {
+                    text:
+`📦 *PLAN DE ESTE GRUPO*
+
+Plan: ${r.plan}
+Activo: ${isGroupActive(from) ? "Sí" : "No"}
+Key: ${r.key}
+Expira: ${r.expiresAt ? r.expiresAt : "Sin fecha"}`
+                });
+            }
+            // ======================================================
+            // .KEYS — Ver últimas keys (solo owner)
+            // ======================================================
+            if (cmd === "keys") {
+                if (!isOwnerUser) {
+                    return sock.sendMessage(from, {
+                        text: "❌ Solo el owner puede ver las keys."
+                    });
+                }
+
+                const list = listKeys(20);
+
+                if (!list.length) {
+                    return sock.sendMessage(from, {
+                        text: "ℹ️ No hay keys registradas."
+                    });
+                }
+
+                let txt = "🔑 *ÚLTIMAS KEYS GENERADAS*\n\n";
+
+                for (const k of list) {
+                    txt += `Key: ${k.key}\nPlan: ${k.plan}\nDías: ${k.days}\nUsada: ${k.used ? "Sí" : "No"}\n`;
+                    if (k.usedInGroup) txt += `Grupo: ${k.usedInGroup}\n`;
+                    txt += `Creada: ${new Date(k.createdAt).toISOString().slice(0, 19).replace("T", " ")}\n\n`;
+                }
+
+                return sock.sendMessage(from, { text: txt.trim() });
+            }
+
+            // ======================================================
+            // .RENTAS — Ver rentas registradas (solo owner)
+            // ======================================================
+            if (cmd === "rentas") {
+                if (!isOwnerUser) {
+                    return sock.sendMessage(from, {
+                        text: "❌ Solo el owner puede ver las rentas."
+                    });
+                }
+
+                const list = listRents(50);
+
+                if (!list.length) {
+                    return sock.sendMessage(from, {
+                        text: "ℹ️ No hay rentas registradas."
+                    });
+                }
+
+                let txt = "📦 *RENTAS ACTIVAS Y REGISTRADAS*\n\n";
+
+                for (const r of list) {
+                    txt += `Grupo: ${r.groupJid}\nPlan: ${r.plan}\nActivo: ${new Date(r.expiresAt) > Date.now() ? "Sí" : "No"}\nKey: ${r.key}\nExpira: ${r.expiresAt}\n\n`;
+                }
+
+                return sock.sendMessage(from, { text: txt.trim() });
+            }
+
+            // ======================================================
+            // .RENOVAR — Añadir días a un grupo (solo owner)
+            // ======================================================
+            if (cmd === "renovar") {
+                if (!isOwnerUser) {
+                    return sock.sendMessage(from, {
+                        text: "❌ Solo el owner puede renovar grupos."
+                    });
+                }
+
+                if (!isGroup) {
+                    return sock.sendMessage(from, {
+                        text: "ℹ️ Usa este comando dentro de un grupo."
+                    });
+                }
+
+                const daysArg = args[0];
+                const days = parseInt(daysArg);
+
+                if (isNaN(days) || days <= 0) {
+                    return sock.sendMessage(from, {
+                        text: "❌ Días inválidos. Ejemplo: .renovar 30"
+                    });
+                }
+
+                const updated = extendGroupRent(from, days);
+
+                if (!updated) {
+                    return sock.sendMessage(from, {
+                        text: "❌ Este grupo no tiene renta registrada."
+                    });
+                }
+
+                return sock.sendMessage(from, {
+                    text:
+`✅ Renta renovada para este grupo.
+
+Días añadidos: ${days}
+Nueva expiración: ${updated.expiresAt}`
+                });
+            }
+
+            // ======================================================
+            // .ON / .OFF — Activar o desactivar funciones del grupo
+            // ======================================================
+            if (cmd === "on" || cmd === "off") {
+                if (!isGroup) {
+                    return sock.sendMessage(from, {
+                        text: "ℹ️ Solo usable en grupos."
+                    });
+                }
+
+                const feature = (args[0] || "").toLowerCase();
+                const valid = ["welcome", "antilink", "antiflood"];
+
+                if (!valid.includes(feature)) {
+                    return sock.sendMessage(from, {
+                        text: `❌ Feature inválida.\nUsa: welcome, antilink, antiflood`
+                    });
+                }
+
+                const value = cmd === "on";
+                setChatConfig(from, feature, value);
+
+                return sock.sendMessage(from, {
+                    text: `⚙️ *${feature}* ha sido ${value ? "ACTIVADO" : "DESACTIVADO"} en este grupo.`
+                });
+            }
+
+            // ======================================================
+            // .BAN / .KICK — Expulsar usuarios
+            // ======================================================
+            if (cmd === "ban" || cmd === "kick") {
+                if (!isGroup) {
+                    return sock.sendMessage(from, {
+                        text: "ℹ️ Solo usable en grupos."
+                    });
+                }
+
+                const groupMetadata = await sock.groupMetadata(from);
+                const iAmAdmin = isAdminInGroup(groupMetadata.participants, myId);
+
+                if (!iAmAdmin) {
+                    return sock.sendMessage(from, {
+                        text: "❌ Necesito ser admin para expulsar."
+                    });
+                }
+
+                const mentioned =
+                    msg.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
+
+                if (!mentioned.length) {
+                    return sock.sendMessage(from, {
+                        text: "❌ Menciona a la persona que quieres expulsar.\nEjemplo: .ban @usuario"
+                    });
+                }
+
+                await sock.groupParticipantsUpdate(from, mentioned, "remove");
+
+                return sock.sendMessage(from, {
+                    text: "✅ Usuario(s) expulsado(s)."
+                });
+            }
+            // ======================================================
+            // .HOLA — Comando simple para pruebas
+            // ======================================================
+            if (cmd === "hola") {
+                return sock.sendMessage(from, {
+                    text: "Hola, soy Compita. ¿En qué puedo ayudarte?"
+                });
+            }
+
+            // ======================================================
+            // .MENU — Menú profesional sin emojis infantiles
+            // ======================================================
+            if (cmd === "menu" || cmd === "help" || cmd === "ayuda") {
+                let txt =
+`📘 *MENÚ PRINCIPAL — COMPITA*
+
+Comandos disponibles:
+
+• .hola
+• .menu
+• .mi-plan
+• .activar KEY
+
+Si este grupo tiene renta activa:
+• .on welcome
+• .on antilink
+• .on antiflood
+• .off welcome
+• .off antilink
+• .off antiflood
+• .ban @usuario
+• .kick @usuario
+
+Comandos del owner:
+• .genkey PASS días plan
+• .keys
+• .rentas
+• .renovar días
+
+Sistema profesional de keys y rentas listo para distribución.`;
+
+                return sock.sendMessage(from, { text: txt });
+            }
+
+            // ======================================================
+            // FIN DEL SISTEMA DE COMANDOS
+            // ======================================================
+
+        } catch (err) {
+            console.log("❌ Error procesando mensaje:", err);
+        }
+    });
+    // ======================================================
+    // FIN DE startCompita()
+    // ======================================================
 }
 
-startCompita()
+// ======================================================
+// INICIO AUTOMÁTICO DE COMPITA
+// ======================================================
+startCompita();
+
+// ======================================================
+// MANEJO GLOBAL DE ERRORES (ANTI-CRASH)
+// ======================================================
+process.on("uncaughtException", (err) => {
+    console.log("❌ Error no capturado:", err);
+});
+
+process.on("unhandledRejection", (reason) => {
+    console.log("❌ Promesa rechazada sin manejar:", reason);
+});

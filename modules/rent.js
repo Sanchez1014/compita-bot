@@ -1,48 +1,69 @@
-const fs = require('fs');
-const path = require('path');
+// ======================================================
+// RENT.JS — UTILIDADES PROFESIONALES PARA RENTAS
+// ======================================================
 
-const RENTS_PATH = path.join(__dirname, '..', 'data', 'rents.json');
+const fs = require("fs");
+const path = require("path");
 
+const RENTS_FILE = path.join(__dirname, "../database/rents.json");
+
+// Asegurar archivo
+if (!fs.existsSync(RENTS_FILE)) {
+    fs.writeFileSync(RENTS_FILE, JSON.stringify([]));
+}
+
+// ------------------------------------------------------
+// Cargar rentas
+// ------------------------------------------------------
 function loadRents() {
-    if (!fs.existsSync(RENTS_PATH)) return {};
-    const raw = fs.readFileSync(RENTS_PATH, 'utf8') || '{}';
-    return JSON.parse(raw);
+    return JSON.parse(fs.readFileSync(RENTS_FILE));
 }
 
+// ------------------------------------------------------
+// Guardar rentas
+// ------------------------------------------------------
 function saveRents(data) {
-    fs.writeFileSync(RENTS_PATH, JSON.stringify(data, null, 2), 'utf8');
+    fs.writeFileSync(RENTS_FILE, JSON.stringify(data, null, 2));
 }
 
-function setGroupRent(groupJid, { plan, expiresAt, key }) {
+// ------------------------------------------------------
+// Obtener renta por grupo
+// ------------------------------------------------------
+function getRent(groupJid) {
     const rents = loadRents();
-    rents[groupJid] = {
-        plan,
-        expiresAt,
-        key,
-        active: true,
-        updatedAt: Date.now()
-    };
-    saveRents(rents);
-    return rents[groupJid];
+    return rents.find((x) => x.groupJid === groupJid) || null;
 }
 
-function getGroupRent(groupJid) {
-    const rents = loadRents();
-    return rents[groupJid] || null;
-}
-
-function isGroupActive(groupJid) {
-    const r = getGroupRent(groupJid);
+// ------------------------------------------------------
+// Verificar si está activo
+// ------------------------------------------------------
+function isActive(groupJid) {
+    const r = getRent(groupJid);
     if (!r) return false;
-    if (!r.active) return false;
-    if (!r.expiresAt) return true;
-    return Date.now() <= new Date(r.expiresAt).getTime();
+    return Date.now() < r.expiresAt;
+}
+
+// ------------------------------------------------------
+// Formatear fecha
+// ------------------------------------------------------
+function formatDate(timestamp) {
+    if (!timestamp) return "Sin fecha";
+    return new Date(timestamp).toISOString().slice(0, 19).replace("T", " ");
+}
+
+// ------------------------------------------------------
+// Obtener lista de rentas
+// ------------------------------------------------------
+function listAllRents(limit = 100) {
+    const rents = loadRents();
+    return rents.slice(-limit).reverse();
 }
 
 module.exports = {
     loadRents,
     saveRents,
-    setGroupRent,
-    getGroupRent,
-    isGroupActive
+    getRent,
+    isActive,
+    formatDate,
+    listAllRents
 };

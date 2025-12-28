@@ -1,51 +1,65 @@
-const moderationCommands = {
-  '.kick': async (sock, msg, from) => {
-    const mention = msg.message.extendedTextMessage?.contextInfo?.mentionedJid;
-    if (!mention) return sock.sendMessage(from, { text: '[Compita]\nDebes mencionar a alguien.' });
+// ======================================================
+// MODERATION.JS — SISTEMA PROFESIONAL DE MODERACIÓN
+// ======================================================
 
-    try {
-      await sock.groupParticipantsUpdate(from, mention, 'remove');
-      await sock.sendMessage(from, { text: '[Compita]\nUsuario expulsado.' });
-    } catch {
-      await sock.sendMessage(from, { text: '[Compita]\nNo tengo permisos de admin.' });
+const floodMap = new Map();
+
+// ------------------------------------------------------
+// Verificar si soy admin en el grupo
+// ------------------------------------------------------
+function isAdminInGroup(participants, myId) {
+    const p = participants.find((x) => x.id === myId);
+    return p?.admin === "admin" || p?.admin === "superadmin";
+}
+
+// ------------------------------------------------------
+// Anti‑Flood — Detecta spam de mensajes
+// ------------------------------------------------------
+function checkFlood(groupJid, sender, maxMessages = 5, intervalMs = 5000) {
+    const key = `${groupJid}:${sender}`;
+    const now = Date.now();
+
+    if (!floodMap.has(key)) {
+        floodMap.set(key, { count: 1, first: now });
+        return false;
     }
-  },
 
-  '.add': async (sock, msg, from, text) => {
-    const number = text.replace('.add', '').trim();
-    if (!number) return sock.sendMessage(from, { text: '[Compita]\nDebes escribir un número.' });
+    const data = floodMap.get(key);
 
-    try {
-      await sock.groupParticipantsUpdate(from, [`${number}@s.whatsapp.net`], 'add');
-      await sock.sendMessage(from, { text: '[Compita]\nUsuario agregado.' });
-    } catch {
-      await sock.sendMessage(from, { text: '[Compita]\nNo pude agregarlo.' });
+    // Si pasó el intervalo, reiniciar contador
+    if (now - data.first > intervalMs) {
+        floodMap.set(key, { count: 1, first: now });
+        return false;
     }
-  },
 
-  '.promote': async (sock, msg, from) => {
-    const mention = msg.message.extendedTextMessage?.contextInfo?.mentionedJid;
-    if (!mention) return sock.sendMessage(from, { text: '[Compita]\nDebes mencionar a alguien.' });
+    data.count++;
 
-    try {
-      await sock.groupParticipantsUpdate(from, mention, 'promote');
-      await sock.sendMessage(from, { text: '[Compita]\nUsuario ascendido.' });
-    } catch {
-      await sock.sendMessage(from, { text: '[Compita]\nNo pude ascenderlo.' });
+    if (data.count >= maxMessages) {
+        floodMap.delete(key);
+        return true; // Flood detectado
     }
-  },
 
-  '.demote': async (sock, msg, from) => {
-    const mention = msg.message.extendedTextMessage?.contextInfo?.mentionedJid;
-    if (!mention) return sock.sendMessage(from, { text: '[Compita]\nDebes mencionar a alguien.' });
+    return false;
+}
 
-    try {
-      await sock.groupParticipantsUpdate(from, mention, 'demote');
-      await sock.sendMessage(from, { text: '[Compita]\nUsuario degradado.' });
-    } catch {
-      await sock.sendMessage(from, { text: '[Compita]\nNo pude degradarlo.' });
-    }
-  }
+// ------------------------------------------------------
+// Base para Anti‑Link (opcional)
+// ------------------------------------------------------
+function containsLink(text) {
+    const regex = /(https?:\/\/|chat\.whatsapp\.com)/i;
+    return regex.test(text);
+}
+
+// ------------------------------------------------------
+// Base para mensajes de bienvenida
+// ------------------------------------------------------
+function welcomeMessage(user) {
+    return `Bienvenido ${user} al grupo.`;
+}
+
+module.exports = {
+    isAdminInGroup,
+    checkFlood,
+    containsLink,
+    welcomeMessage
 };
-
-module.exports = { moderationCommands };

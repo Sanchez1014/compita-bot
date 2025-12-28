@@ -1,61 +1,92 @@
-const fs = require('fs');
-const path = require('path');
-const { isOwner } = require('../config'); // Sistema real de owners
+// ======================================================
+// KEYS.JS — SISTEMA PROFESIONAL DE GENERACIÓN DE KEYS
+// ======================================================
 
-const KEYS_PATH = path.join(__dirname, '..', 'data', 'keys.json');
+const fs = require("fs");
+const path = require("path");
 
+const KEYS_FILE = path.join(__dirname, "../database/keys.json");
+
+// Asegurar archivo
+if (!fs.existsSync(KEYS_FILE)) {
+    fs.writeFileSync(KEYS_FILE, JSON.stringify([]));
+}
+
+// ------------------------------------------------------
+// Cargar keys
+// ------------------------------------------------------
 function loadKeys() {
-    if (!fs.existsSync(KEYS_PATH)) return {};
-    const raw = fs.readFileSync(KEYS_PATH, 'utf8') || '{}';
-    return JSON.parse(raw);
+    return JSON.parse(fs.readFileSync(KEYS_FILE));
 }
 
+// ------------------------------------------------------
+// Guardar keys
+// ------------------------------------------------------
 function saveKeys(data) {
-    fs.writeFileSync(KEYS_PATH, JSON.stringify(data, null, 2), 'utf8');
+    fs.writeFileSync(KEYS_FILE, JSON.stringify(data, null, 2));
 }
 
-function randomPart() {
-    return Math.random().toString(36).substring(2, 6).toUpperCase();
+// ------------------------------------------------------
+// Validar owner con password
+// ------------------------------------------------------
+function checkOwnerPermission(sender, password) {
+    const OWNER = "195928086569094@lid"; // tu JID real
+    const PASS = "CARNITASM"; // tu password real
+
+    return sender === OWNER && password === PASS;
 }
 
-function generateKey(plan = 'BASIC', days = 30) {
-    const key = `COMPITA-${randomPart()}-${randomPart()}-${randomPart()}`;
+// ------------------------------------------------------
+// Generar key única
+// ------------------------------------------------------
+function generateKey(plan, days) {
     const keys = loadKeys();
-    keys[key] = {
+
+    const key = "COMPITA-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+
+    const data = {
+        key,
         plan,
         days,
         used: false,
+        usedInGroup: null,
         createdAt: Date.now()
     };
+
+    keys.push(data);
     saveKeys(keys);
-    return { key, data: keys[key] };
+
+    return { key, data };
 }
 
-function validateKey(key) {
+// ------------------------------------------------------
+// Listar keys
+// ------------------------------------------------------
+function listKeys(limit = 20) {
     const keys = loadKeys();
-    return keys[key] || null;
+    return keys.slice(-limit).reverse();
 }
 
+// ------------------------------------------------------
+// Marcar key como usada
+// ------------------------------------------------------
 function useKey(key, groupJid) {
     const keys = loadKeys();
-    if (!keys[key]) return false;
-    keys[key].used = true;
-    keys[key].usedInGroup = groupJid;
-    keys[key].usedAt = Date.now();
-    saveKeys(keys);
-    return true;
-}
+    const k = keys.find((x) => x.key === key);
 
-// 🔥 ESTA ES LA FUNCIÓN QUE HACE QUE .genkey FUNCIONE
-function checkOwnerPermission(jid, password) {
-    return isOwner(jid) && password === "CARNITASM";
+    if (!k) return null;
+    if (k.used) return null;
+
+    k.used = true;
+    k.usedInGroup = groupJid;
+
+    saveKeys(keys);
+    return k;
 }
 
 module.exports = {
-    loadKeys,
-    saveKeys,
     generateKey,
-    validateKey,
-    useKey,
-    checkOwnerPermission
+    listKeys,
+    checkOwnerPermission,
+    useKey
 };
