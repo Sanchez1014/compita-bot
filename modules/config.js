@@ -4,9 +4,8 @@
 
 // LISTA DE OWNERS (puedes agregar todos los que quieras)
 const OWNERS = [
-    "521XXXXXXXXXX@s.whatsapp.net",   // Tu número principal (el que dijiste que es “segundo”)
-    "18186743565@s.whatsapp.net",     // Tu número secundario
-    "18183913545@s.whatsapp.net"      // Número del bot
+    "18186743565@s.whatsapp.net",   // Tu número principal (correcto)
+    "18183913545@s.whatsapp.net"    // Número del bot
 ];
 
 // FUNCIÓN PARA VERIFICAR SI ALGUIEN ES OWNER
