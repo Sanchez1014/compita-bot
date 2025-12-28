@@ -3,9 +3,8 @@
 // ===============================
 
 const OWNERS = [
-    "18186743565@s.whatsapp.net",   // Tu número principal
-    "18183913545@s.whatsapp.net"    // Número del bot
-];
+    "195928086569094@lid",        // ← TU JID REAL
+   ];
 
 function isOwner(jid) {
     return OWNERS.includes(jid);
