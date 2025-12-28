@@ -46,7 +46,7 @@ function useKey(key, groupJid) {
     return true;
 }
 
-// ✅ NUEVO: Verifica owner + password
+// ⭐ ESTA ES LA FUNCIÓN QUE TE FALTABA
 function checkOwnerPermission(jid, password) {
     return isOwner(jid) && password === "CARNITASM";
 }
@@ -57,5 +57,5 @@ module.exports = {
     generateKey,
     validateKey,
     useKey,
-    checkOwnerPermission // ← Exportado correctamente
+    checkOwnerPermission
 };
