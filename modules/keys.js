@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { isOwner } = require('../config'); // ← Importa sistema de owners
+const { isOwner } = require('../config'); // Sistema real de owners
 
 const KEYS_PATH = path.join(__dirname, '..', 'data', 'keys.json');
 
@@ -46,7 +46,7 @@ function useKey(key, groupJid) {
     return true;
 }
 
-// ⭐ ESTA ES LA FUNCIÓN QUE TE FALTABA
+// 🔥 ESTA ES LA FUNCIÓN QUE HACE QUE .genkey FUNCIONE
 function checkOwnerPermission(jid, password) {
     return isOwner(jid) && password === "CARNITASM";
 }
