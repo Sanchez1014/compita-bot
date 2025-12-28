@@ -61,14 +61,7 @@ async function startCompita() {
             console.log('✅ COMPITA — ONLINE');
         }
     });
-// ===============================
-// .jid — Muestra tu JID real
-// ===============================
-if (cmd === 'jid') {
-    return sock.sendMessage(from, {
-        text: `Tu JID real es:\n${sender}`
-    });
-}
+
     // ===============================
     // MENSAJES
     // ===============================
@@ -132,7 +125,13 @@ if (cmd === 'jid') {
         if (!body.startsWith('.')) return;
 
         const args = body.trim().split(/\s+/);
-        const cmd = args.shift().slice(1).toLowerCase();
+        const cmd = args.shift().slice(1).toLowerCase(); 
+
+if (cmd === 'jid') {
+    return sock.sendMessage(from, {
+        text: `Tu JID real es:\n${sender}`
+    });
+}
 
         // Comandos que funcionan sin renta
         const freeCommands = ['activar', 'hola', 'menu', 'help', 'ayuda', 'mi-plan'];
