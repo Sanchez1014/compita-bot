@@ -26,11 +26,11 @@ async function startCompita() {
 
     const { state, saveCreds } = await useMultiFileAuthState("auth");
 
-    const sock = makeWASocket({
-        printQRInTerminal: false,
-        auth: state,
-        syncFullHistory: false
-    });
+  const sock = makeWASocket({
+    printQRInTerminal: true,
+    auth: state,
+    syncFullHistory: false
+});
 
     sock.ev.on("creds.update", saveCreds);
 
